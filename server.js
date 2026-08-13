@@ -45,6 +45,7 @@ function winnerAt(board, r, c, color, count) {
   }
   return false;
 }
+function hasWinningPotential(board,count){const n=board.length;for(const[dr,dc]of[[1,0],[0,1],[1,1],[1,-1]])for(let r=0;r<n;r++)for(let c=0;c<n;c++){const er=r+(count-1)*dr,ec=c+(count-1)*dc;if(er<0||ec<0||er>=n||ec>=n)continue;let black=true,white=true;for(let k=0;k<count;k++){const v=board[r+k*dr][c+k*dc];if(v===2)black=false;if(v===1)white=false}if(black||white)return true}return false;}
 function ok(extra={}) { return {ok:true, apiVersion:API_VERSION, ...extra}; }
 function fail(message) { return {ok:false, apiVersion:API_VERSION, message}; }
 
@@ -106,7 +107,7 @@ function handleRoom(event) {
     room.snapshots.push(snapshot(room)); if(room.snapshots.length>80)room.snapshots.shift();
     room.board[r][c]=color; room.history.push({r,c,color,turnEnd:false}); room.stonesThisTurn++;
     if (winnerAt(room.board,r,c,color,room.winCount)) { room.status='finished'; room.winner=color; room.history.at(-1).turnEnd=true; }
-    else if (room.history.length===room.size*room.size) { room.status='finished'; room.winner=0; }
+    else if (room.history.length===room.size*room.size||!hasWinningPotential(room.board,room.winCount)) { room.status='finished'; room.winner=0; }
     else if (color===1&&!room.swapUsed&&room.stonesThisTurn===room.turnQuota) { room.swapPending=true; room.history.at(-1).turnEnd=true; }
     else if (room.stonesThisTurn===room.turnQuota) { room.history.at(-1).turnEnd=true; room.current=3-room.current; room.stonesThisTurn=0; room.turnQuota=quota(room.gameType); room.turnId++; }
     room.version++; room.updatedAt=Date.now(); return ok({room:publicRoom(room)});

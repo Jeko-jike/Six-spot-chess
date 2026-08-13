@@ -9,7 +9,7 @@ const PORT = Number(process.env.PORT) || 8765;
 const HOST = '0.0.0.0';
 const ROOT = __dirname;
 const rooms = new Map();
-const API_VERSION = 3;
+const API_VERSION = 4;
 const quota = type => type === 'gomoku' ? 1 : 2;
 const winCount = type => type === 'gomoku' ? 5 : 6;
 const sizeFor = type => type === 'gomoku' ? 13 : 19;
@@ -50,6 +50,7 @@ function fail(message) { return {ok:false, apiVersion:API_VERSION, message}; }
 
 function handleRoom(event) {
   const action = event.action;
+  if (action === 'ping') return ok({message:'SixGo room server ready'});
   if (action === 'create') {
     const gameType = event.gameType === 'gomoku' ? 'gomoku' : 'connect6';
     const size = sizeFor(gameType), token = makeToken(), code = makeCode();
@@ -123,13 +124,15 @@ function snapshot(room){return JSON.stringify({board:room.board,history:room.his
 function restoreSnapshot(room){const raw=room.snapshots.pop();if(!raw)return;Object.assign(room,JSON.parse(raw));}
 function resetRoom(room){room.board=emptyBoard(room.size);room.history=[];room.current=1;room.stonesThisTurn=0;room.turnQuota=quota(room.gameType);room.turnId=0;room.hintTurns={black:-1,white:-1};room.swapPending=false;room.swapUsed=false;room.status='playing';room.winner=null;room.snapshots=[];}
 
-function send(res,status,body,type='application/json; charset=utf-8') {
-  res.writeHead(status, {'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}); res.end(body);
+function send(res,status,body,type='application/json; charset=utf-8',origin='*') {
+  res.writeHead(status, {'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'}); res.end(body);
 }
 const server = http.createServer((req,res) => {
+  const origin=req.headers.origin||'*';
+  if(req.method==='OPTIONS')return send(res,204,'','text/plain; charset=utf-8',origin);
   if (req.method==='POST' && req.url==='/api/room') {
     let body=''; req.on('data', chunk => { body+=chunk; if(body.length>20000) req.destroy(); });
-    req.on('end', () => { try { const result=handleRoom(JSON.parse(body||'{}')); send(res,result.ok?200:400,JSON.stringify(result)); } catch(e) { console.error(e); send(res,500,JSON.stringify(fail('服务器暂时不可用'))); } });
+    req.on('end', () => { try { const result=handleRoom(JSON.parse(body||'{}')); send(res,result.ok?200:400,JSON.stringify(result),'application/json; charset=utf-8',origin); } catch(e) { console.error(e); send(res,500,JSON.stringify(fail('服务器暂时不可用')),'application/json; charset=utf-8',origin); } });
     return;
   }
   if (req.method!=='GET' && req.method!=='HEAD') return send(res,405,'Method Not Allowed','text/plain; charset=utf-8');
